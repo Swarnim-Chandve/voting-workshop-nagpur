@@ -12,7 +12,8 @@ pub mod voting {
                             poll_id: u64,
                             description: String,
                             poll_start: u64,
-                            poll_end: u64) -> Result<()> {
+                            poll_end: u64,
+                         ) -> Result<()> {
 
         let poll = &mut ctx.accounts.poll;
         poll.poll_id = poll_id;
@@ -20,6 +21,7 @@ pub mod voting {
         poll.poll_start = poll_start;
         poll.poll_end = poll_end;
         poll.candidate_amount = 0;
+        poll.poll_total_votes = 0;          
         Ok(())
     }
 
@@ -28,19 +30,35 @@ pub mod voting {
                                 _poll_id: u64
                             ) -> Result<()> {
         let candidate = &mut ctx.accounts.candidate;
+        let poll_account = &mut ctx.accounts.poll;
         candidate.candidate_name = candidate_name;
         candidate.candidate_votes = 0;
+        poll_account.candidate_amount += 1;
         Ok(())
     }
 
     pub fn vote(ctx: Context<Vote>, _candidate_name: String, _poll_id: u64) -> Result<()> {
         let candidate = &mut ctx.accounts.candidate;
         candidate.candidate_votes += 1;
+        let poll = &mut ctx.accounts.poll;
+        poll.poll_total_votes += 1;
+
 
         msg!("Voted for candidate: {}", candidate.candidate_name);
         msg!("Votes: {}", candidate.candidate_votes);
         Ok(())
     }
+
+
+    pub fn count_poll_votes(ctx: Context<CountPollVotes>, poll_id: u64) -> Result<()> {
+      let poll = &ctx.accounts.poll;
+      
+      msg!("Poll ID: {}", poll.poll_id);
+      msg!("Total votes in poll: {}", poll.poll_total_votes);
+      msg!("Number of candidates: {}", poll.candidate_amount);
+  
+      Ok(())
+  }
 
 }
 
@@ -51,6 +69,7 @@ pub struct Vote<'info> {
     pub signer: Signer<'info>,
 
     #[account(
+      mut,
         seeds = [poll_id.to_le_bytes().as_ref()],
         bump
       )]
@@ -115,6 +134,16 @@ pub struct InitializePoll<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[derive(Accounts)]
+#[instruction(poll_id: u64)]
+pub struct CountPollVotes<'info> {
+    #[account(
+        seeds = [poll_id.to_le_bytes().as_ref()],
+        bump
+    )]
+    pub poll: Account<'info, Poll>,
+}
+
 #[account]
 #[derive(InitSpace)]
 pub struct Poll {
@@ -124,4 +153,5 @@ pub struct Poll {
     pub poll_start: u64,
     pub poll_end: u64,
     pub candidate_amount: u64,
+    pub poll_total_votes: u64,
 }
